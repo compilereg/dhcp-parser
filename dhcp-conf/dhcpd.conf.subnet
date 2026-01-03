@@ -1,0 +1,32 @@
+shared-network lan {
+
+
+subnet 10.0.3.0 netmask 255.255.255.0 {
+        range 10.0.3.2 10.0.3.254;
+        option routers 10.0.3.1;
+        next-server 10.0.3.2;
+}
+
+subnet 10.0.4.0 netmask 255.255.255.0 {
+        range 10.0.4.2 10.0.4.254;
+        option routers 10.0.4.1;
+        next-server 10.0.3.2;
+}
+
+
+subnet 10.0.2.0 netmask 255.255.255.0 {
+        range 10.0.2.2 10.0.2.254;
+        option routers 10.0.2.1;
+        next-server 10.0.3.2;
+}
+
+subnet 10.0.100.0 netmask 255.255.255.0 {
+        range 10.0.100.2 10.0.100.253;
+        option routers 10.0.100.1;
+        next-server 10.0.3.2;
+}
+
+
+
+
+}

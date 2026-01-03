@@ -1,7 +1,13 @@
 grammar DhcpdConf;
+
 @header {
 package edu.aast.cndc.dhcpd.antlr;
 }
+
+/* =======================
+   Parser rules
+   ======================= */
+
 config
   : element* EOF
   ;
@@ -14,6 +20,11 @@ element
 statement
   : includeStmt
   | simpleStmt
+  | emptyStmt
+  ;
+  
+emptyStmt
+  : SEMI
   ;
 
 includeStmt
@@ -66,6 +77,45 @@ blockParams
   : stmtItem+
   ;
 
+/* =======================
+   REQUIRED parser wrappers
+   ======================= */
+
+identifier
+  : IDENT
+  | INCLUDE
+  | SUBNET
+  | POOL
+  | HOST
+  | GROUP
+  | SHARED_NETWORK
+  | CLASS
+  | SUBCLASS
+  | ZONE
+  | KEY
+  ;
+  
+stringLiteral
+  : STRING
+  ;
+
+ipAddress
+  : IPV4
+  ;
+
+number
+  : NUMBER
+  ;
+
+rangeLiteral
+  : IPV4 IPV4
+  ;
+
+/* =======================
+   Lexer rules
+   ======================= */
+
+/* Keywords */
 INCLUDE        : 'include';
 SUBNET         : 'subnet';
 POOL           : 'pool';
@@ -77,6 +127,7 @@ SUBCLASS       : 'subclass';
 ZONE           : 'zone';
 KEY            : 'key';
 
+/* Symbols */
 LBRACE : '{';
 RBRACE : '}';
 SEMI   : ';';
@@ -84,35 +135,18 @@ COMMA  : ',';
 COLON  : ':';
 SLASH  : '/';
 
+/* Operators */
 OP
   : '=' | '==' | '!=' | '<' | '>' | '<=' | '>='
   | 'and' | 'or' | 'not'
   ;
 
-stringLiteral
-  : STRING
+/* FIX: ignore dash-only separator lines */
+DASH_LINE
+  : '-' '-' '-' '-' '-' '-'* -> skip
   ;
 
-identifier
-  : IDENT
-  ;
-
-ipAddress
-  : IPV4
-  ;
-
-rangeLiteral
-  : IPV4 IPV4
-  ;
-
-MAC
-  : HEX HEX ':' HEX HEX ':' HEX HEX ':' HEX HEX ':' HEX HEX ':' HEX HEX
-  ;
-
-number
-  : NUMBER
-  ;
-
+/* Literals */
 STRING
   : '"' ( '\\' . | ~["\\] )* '"'
   ;
@@ -121,17 +155,21 @@ IPV4
   : DIGIT+ '.' DIGIT+ '.' DIGIT+ '.' DIGIT+
   ;
 
-IDENT
-  : [a-zA-Z_][a-zA-Z0-9_\\-\\.]*
-  ;
-
 NUMBER
   : DIGIT+
   ;
 
-fragment DIGIT : [0-9];
-fragment HEX   : [0-9a-fA-F];
+/* Identifiers (ISC DHCP style) */
+IDENT
+  : [-a-zA-Z_][a-zA-Z0-9_\\-\\.]*
+  ;
 
+/* MAC address */
+MAC
+  : HEX HEX ':' HEX HEX ':' HEX HEX ':' HEX HEX ':' HEX HEX ':' HEX HEX
+  ;
+
+/* Comments & whitespace */
 LINE_COMMENT
   : '#' ~[\r\n]* -> skip
   ;
@@ -143,3 +181,7 @@ BLOCK_COMMENT
 WS
   : [ \t\r\n]+ -> skip
   ;
+
+/* Fragments */
+fragment DIGIT : [0-9];
+fragment HEX   : [0-9a-fA-F];

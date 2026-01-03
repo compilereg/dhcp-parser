@@ -3,6 +3,8 @@ package utils;
 import org.antlr.v4.runtime.*;
 import org.antlr.v4.runtime.tree.ParseTree;
 
+import edu.aast.cndc.dhcpd.antlr.DhcpdConfLexer;
+import edu.aast.cndc.dhcpd.antlr.DhcpdConfParser;
 import models.DhcpdModel;
 
 import java.io.IOException;

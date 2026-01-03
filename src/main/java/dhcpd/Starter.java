@@ -7,10 +7,10 @@ import java.nio.file.Path;
 import models.DhcpdModel;
 import utils.DhcpdConfigLoader;
 import utils.DhcpdJsonWriter;
-
+//////////////////////////////////////////////////////////////////////////////////////////
 public class Starter {
 
-	public static void main(String[] args) {
+	public static void main(String[] args) throws Exception {
 		// TODO Auto-generated method stub
 		System.out.println("Starting..");
 		 Path main = Path.of("dhcp-conf/dhcpd.conf");
