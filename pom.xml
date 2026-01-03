@@ -1,0 +1,88 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>edu.aast.cndc</groupId>
+  <artifactId>dhcpd</artifactId>
+  <version>1.0</version>
+  <packaging>jar</packaging>
+  
+    <properties>
+	    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+	    <antlr4.version>4.13.1</antlr4.version>
+	    <jackson.version>2.17.2</jackson.version>
+	</properties>
+	
+	<dependencies>
+	  <dependency>
+	    <groupId>org.antlr</groupId>
+	    <artifactId>antlr4-runtime</artifactId>
+	    <version>${antlr4.version}</version>
+	  </dependency>
+	
+	  <dependency>
+	    <groupId>com.fasterxml.jackson.core</groupId>
+	    <artifactId>jackson-databind</artifactId>
+	    <version>${jackson.version}</version>
+	  </dependency>
+	</dependencies>	
+
+
+  <build>
+    <extensions>
+      <extension>
+        <groupId>org.apache.maven.archetype</groupId>
+        <artifactId>archetype-packaging</artifactId>
+        <version>3.2.0</version>
+      </extension>
+    </extensions>
+    <plugins>
+	 <plugin>
+      <groupId>org.antlr</groupId>
+      <artifactId>antlr4-maven-plugin</artifactId>
+      <version>${antlr4.version}</version>
+      
+      <configuration>
+        <visitor>true</visitor>
+        <listener>false</listener>
+        <outputDirectory>${project.build.directory}/generated-sources/antlr4</outputDirectory>
+      </configuration>
+      
+      <executions>
+        <execution>
+          <id>generate-antlr</id>
+          <phase>generate-sources</phase>
+          <goals>
+            <goal>antlr4</goal>
+          </goals>
+        </execution>
+      </executions>
+    </plugin>
+
+	</plugins>
+    <pluginManagement><!-- lock down plugins versions to avoid using Maven defaults (may be moved to parent pom) -->
+      <plugins>
+		    
+        <plugin>
+          <artifactId>maven-clean-plugin</artifactId>
+          <version>3.4.0</version>
+        </plugin>
+        <plugin>
+          <artifactId>maven-archetype-plugin</artifactId>
+          <version>3.2.0</version>
+        </plugin>
+        <plugin>
+          <artifactId>maven-resources-plugin</artifactId>
+          <version>3.3.1</version>
+        </plugin>
+        <plugin>
+          <artifactId>maven-install-plugin</artifactId>
+          <version>3.1.2</version>
+        </plugin>
+        <plugin>
+          <artifactId>maven-deploy-plugin</artifactId>
+          <version>3.1.2</version>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+  </build>
+</project>
