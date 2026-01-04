@@ -36,7 +36,7 @@ public class DhcpdTest {
         
 	    
 	    
-	    System.out.println(data);
+	    System.out.println(json);
 	    
 	    assertEquals(1,1);
 	    /*

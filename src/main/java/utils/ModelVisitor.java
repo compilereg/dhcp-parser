@@ -19,12 +19,68 @@ public class ModelVisitor extends DhcpdConfBaseVisitor<Void> {
   public ModelVisitor(DhcpdModel model) {
     this.model = Objects.requireNonNull(model);
   }
+  
+  private static class HeadAndBody {
+	    String head;
+	    String body;
+	}
+
+	private HeadAndBody normalizeHeadAndBody(String head, String body) {
+	    HeadAndBody hb = new HeadAndBody();
+
+	    if (body == null || body.isBlank()) {
+	        hb.head = head;
+	        hb.body = "";
+	        return hb;
+	    }
+
+	    String[] tokens = body.split("\\s+");
+	    StringBuilder fullHead = new StringBuilder(head);
+	    int i = 0;
+
+	    // absorb hyphen-prefixed tokens into the head
+	    while (i < tokens.length && tokens[i].startsWith("-")) {
+	        fullHead.append(tokens[i]);
+	        i++;
+	    }
+
+	    hb.head = fullHead.toString();
+	    hb.body = String.join(" ", java.util.Arrays.copyOfRange(tokens, i, tokens.length));
+	    return hb;
+	}
+
 
   @Override
   public Void visitSimpleStmt(DhcpdConfParser.SimpleStmtContext ctx) {
     String head = ctx.stmtHead().getText();
     String body = ctx.stmtBody() == null ? "" : joinStmtBody(ctx.stmtBody());
+    
+    
+    //Global directives, to parse all directives in main configuration files which are not in a block
+ // Are we inside a block?
+    
+    // 1️⃣ GLOBAL context (top-level)
+    if (context.isEmpty()) {
+        String rawBody = body == null ? "" : body;
+        HeadAndBody hb = normalizeHeadAndBody(head, rawBody);
 
+        if (hb.body.isBlank()) {
+            model.globalOptions.put(hb.head, "true");
+        } else {
+            model.globalOptions.put(hb.head, hb.body);
+        }
+        return null;
+    }
+
+    
+    /*
+    if (context.isEmpty()) {
+        // GLOBAL directive
+        model.globalOptions.put(head, body.isBlank() ? "true" : body);
+        return null;
+    }
+    */
+    
     // Global options (very common)
     if ("option".equals(head)) {
       // example: option domain-name "acpc.local";
@@ -48,6 +104,11 @@ public class ModelVisitor extends DhcpdConfBaseVisitor<Void> {
           }
         }
         case "ddns-hostname" -> h.ddnsHostname = unquoteIfQuoted(firstToken(body));
+        case "option" -> {
+            HeadAndBody hb = normalizeHeadAndBody(head, body);
+            String[] parts = splitFirstToken(hb.body);
+            h.options.put(parts[0], parts[1]);
+        }
         default -> {
           // Allow host-scoped options too
           if ("option".equals(head)) {
@@ -70,6 +131,18 @@ public class ModelVisitor extends DhcpdConfBaseVisitor<Void> {
           if (tokens.length >= 2) { s.rangeStart = tokens[0]; s.rangeEnd = tokens[1]; }
         }
         case "next-server" -> s.nextServer = firstToken(body);
+        case "option" -> {
+            HeadAndBody hb = normalizeHeadAndBody(head, body);
+            String[] parts = splitFirstToken(hb.body);
+
+            if (parts[0] != null) {
+                s.options.put(parts[0], parts[1]);
+
+                if ("routers".equals(parts[0])) {
+                    s.router = firstToken(parts[1]);
+                }
+            }
+        }
         default -> {
           if ("option".equals(head)) {
             String[] parts = splitFirstToken(body);
