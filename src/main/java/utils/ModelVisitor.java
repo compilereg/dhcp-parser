@@ -25,9 +25,17 @@ public class ModelVisitor extends DhcpdConfBaseVisitor<Void> {
 	    String body;
 	}
 
-	private HeadAndBody normalizeHeadAndBody(String head, String body) {
+  private HeadAndBody normalizeHeadAndBody(String head, String body) {
 	    HeadAndBody hb = new HeadAndBody();
 
+	    // ✅ OPTION A: do NOT normalize 'option'
+	    if ("option".equals(head)) {
+	        hb.head = head;
+	        hb.body = body == null ? "" : body.trim();
+	        return hb;
+	    }
+
+	    // existing behavior for everything else
 	    if (body == null || body.isBlank()) {
 	        hb.head = head;
 	        hb.body = "";
@@ -45,16 +53,29 @@ public class ModelVisitor extends DhcpdConfBaseVisitor<Void> {
 	    }
 
 	    hb.head = fullHead.toString();
-	    hb.body = String.join(" ", java.util.Arrays.copyOfRange(tokens, i, tokens.length));
+	    hb.body = String.join(
+	        " ",
+	        java.util.Arrays.copyOfRange(tokens, i, tokens.length)
+	    );
+
 	    return hb;
 	}
 
 
   @Override
   public Void visitSimpleStmt(DhcpdConfParser.SimpleStmtContext ctx) {
+	  
+	  
+	  
+	  
     String head = ctx.stmtHead().getText();
     String body = ctx.stmtBody() == null ? "" : joinStmtBody(ctx.stmtBody());
     
+    
+    System.out.println(
+    	    "**[DBG] ctx=" + (peekSubnet() != null ? "SUBNET" : "GLOBAL") +
+    	    " head='" + head + "' body='" + body + "'"
+    	);
     
     //Global directives, to parse all directives in main configuration files which are not in a block
  // Are we inside a block?
@@ -93,6 +114,45 @@ public class ModelVisitor extends DhcpdConfBaseVisitor<Void> {
     }
 
     // In host blocks you often have: fixed-address X; hardware ethernet MAC; ddns-hostname "name";
+    
+    if (peekHost() != null) {
+        HostReservation h = peekHost();
+
+        HeadAndBody hb = normalizeHeadAndBody(head, body);
+        String hHead = hb.head;
+        String hBody = hb.body;
+
+        switch (hHead) {
+
+            case "fixed-address" -> {
+                h.fixedAddress = firstToken(hBody);
+            }
+
+            case "hardware" -> {
+                // hardware ethernet <mac>;
+                if (hBody.startsWith("ethernet")) {
+                    h.mac = firstToken(
+                        hBody.substring("ethernet".length()).trim()
+                    );
+                }
+            }
+
+            case "ddns-hostname" -> {
+                h.ddnsHostname = unquoteIfQuoted(firstToken(hBody));
+            }
+
+            case "option" -> {
+                String[] parts = splitFirstToken(hBody);
+                if (parts[0] != null) {
+                    h.options.put(parts[0], parts[1]);
+                }
+            }
+        }
+
+        return null;
+    }
+
+/*
     if (peekHost() != null) {
       HostReservation h = peekHost();
       switch (head) {
@@ -121,9 +181,10 @@ public class ModelVisitor extends DhcpdConfBaseVisitor<Void> {
       }
       return null;
     }
+  */	
 
     // In subnet blocks you often have: range A B; option routers X; next-server X;
-    if (peekSubnet() != null) {
+/*    if (peekSubnet() != null) {
       Subnet s = peekSubnet();
       switch (head) {
         case "range" -> {
@@ -165,59 +226,196 @@ public class ModelVisitor extends DhcpdConfBaseVisitor<Void> {
       }
       return null;
     }
+    */
+    
+    if (peekSubnet() != null) {
+        Subnet s = peekSubnet();
+
+        // 🔑 Normalize ONCE
+        HeadAndBody hb = normalizeHeadAndBody(head, body);
+        String h = hb.head;     // normalized head
+        String b = hb.body;     // normalized body
+
+        switch (h) {
+
+            case "range" -> {
+                String[] tokens = b.split("\\s+");
+                if (tokens.length >= 2) {
+                    s.rangeStart = tokens[0];
+                    s.rangeEnd = tokens[1];
+                }
+            }
+
+            case "next-server" -> {
+                s.nextServer = firstToken(b);
+            }
+
+            case "option" -> {
+                String[] parts = splitFirstToken(b);
+                if (parts[0] != null) {
+                    s.options.put(parts[0], parts[1]);
+
+                    if ("routers".equals(parts[0])) {
+                        s.router = firstToken(parts[1]);
+                    }
+                }
+            }
+
+            default -> {
+                // ignore other subnet-level directives
+            }
+        }
+
+        return null;
+    }
+
 
     return null;
   }
 
+  
+  /* The original visitBlock
   @Override
   public Void visitBlock(DhcpdConfParser.BlockContext ctx) {
-    String head = ctx.blockHead().getText();
+	  System.out.println("[DBG] visitBlock ENTERED");
+	  String head = ctx.blockHead().getText();
+      
+      
+      
+      
+      
+      if ("subnet".equals(head)) {
+          Subnet subnet = new Subnet();
 
-    if ("subnet".equals(head)) {
-      Subnet subnet = new Subnet();
-      // block params usually: <network> netmask <mask>
-      if (ctx.blockParams() != null) {
-        List<String> items = flattenParams(ctx.blockParams());
-        subnet.network = firstIp(items);
-        subnet.netmask = valueAfter(items, "netmask");
+          // block params: <network> netmask <mask>
+          if (ctx.blockParams() != null) {
+              List<String> items = flattenParams(ctx.blockParams());
+              subnet.network = firstIp(items);
+              subnet.netmask = valueAfter(items, "netmask");
+          }
+
+          model.subnets.add(subnet);
+
+          // ✅ PUSH before visiting children
+          context.push(subnet);
+
+          // ✅ VISIT CHILDREN EXPLICITLY
+          visitChildren(ctx);
+
+          // ✅ POP after children
+          context.pop();
+          return null;
       }
-      model.subnets.add(subnet);
-      context.push(subnet);
-      super.visitBlock(ctx);
-      context.pop();
-      return null;
-    }
 
-    if ("host".equals(head)) {
-      HostReservation host = new HostReservation();
-      if (ctx.blockParams() != null) {
-        List<String> items = flattenParams(ctx.blockParams());
-        // typical: host <name> { ... }
-        host.name = firstIdentifier(items);
+      if ("host".equals(head)) {
+          HostReservation host = new HostReservation();
+
+          if (ctx.blockParams() != null) {
+              List<String> items = flattenParams(ctx.blockParams());
+              host.name = firstIdentifier(items);
+          }
+
+          model.hosts.add(host);
+          context.push(host);
+          visitChildren(ctx);
+          context.pop();
+          return null;
       }
-      model.hosts.add(host);
-      context.push(host);
-      super.visitBlock(ctx);
-      context.pop();
-      return null;
-    }
 
-    if ("key".equals(head)) {
-      TsigKey key = new TsigKey();
-      if (ctx.blockParams() != null) {
-        List<String> items = flattenParams(ctx.blockParams());
-        key.name = firstIdentifier(items);
+      if ("key".equals(head)) {
+          TsigKey key = new TsigKey();
+
+          if (ctx.blockParams() != null) {
+              List<String> items = flattenParams(ctx.blockParams());
+              key.name = firstIdentifier(items);
+          }
+
+          model.keys.add(key);
+          context.push(key);
+          visitChildren(ctx);
+          context.pop();
+          return null;
       }
-      model.keys.add(key);
-      context.push(key);
-      super.visitBlock(ctx);
-      context.pop();
-      return null;
-    }
 
-    return super.visitBlock(ctx);
+      // default: just visit children
+      return visitChildren(ctx);
   }
 
+  */
+  
+  @Override
+  public Void visitBlock(DhcpdConfParser.BlockContext ctx) {
+
+      String head = ctx.blockHead().getText();
+
+      if ("subnet".equals(head)) {
+          Subnet subnet = new Subnet();
+
+          if (ctx.blockParams() != null) {
+              List<String> items = flattenParams(ctx.blockParams());
+              subnet.network = firstIp(items);
+              subnet.netmask = valueAfter(items, "netmask");
+          }
+
+          model.subnets.add(subnet);
+
+          // 🔑 PUSH CONTEXT
+          context.push(subnet);
+
+          // 🔑 MANUALLY VISIT INNER ELEMENTS
+          for (DhcpdConfParser.ElementContext e : ctx.element()) {
+              visit(e);
+          }
+
+          // 🔑 POP CONTEXT
+          context.pop();
+
+          return null;
+      }
+
+      if ("host".equals(head)) {
+          HostReservation host = new HostReservation();
+
+          if (ctx.blockParams() != null) {
+              List<String> items = flattenParams(ctx.blockParams());
+              host.name = firstIdentifier(items);
+          }
+
+          model.hosts.add(host);
+
+          context.push(host);
+          for (DhcpdConfParser.ElementContext e : ctx.element()) {
+              visit(e);
+          }
+          context.pop();
+
+          return null;
+      }
+
+      if ("key".equals(head)) {
+          TsigKey key = new TsigKey();
+
+          if (ctx.blockParams() != null) {
+              List<String> items = flattenParams(ctx.blockParams());
+              key.name = firstIdentifier(items);
+          }
+
+          model.keys.add(key);
+
+          context.push(key);
+          for (DhcpdConfParser.ElementContext e : ctx.element()) {
+              visit(e);
+          }
+          context.pop();
+
+          return null;
+      }
+
+      // non-interesting blocks
+      return null;
+  }
+
+  
   /* helpers */
 
   private void setOption(String name, String value) {
